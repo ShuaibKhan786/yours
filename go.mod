@@ -1,4 +1,4 @@
-module ytad
+module github.com/ShuaibKhan786/yours
 
 go 1.22.0
 

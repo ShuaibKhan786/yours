@@ -1,8 +1,6 @@
 package main
 
-import (
-	"ytad/gui"
-)
+import "github.com/ShuaibKhan786/yours/cmd/ytad/gui"
 
 func main() {
 	ytad := gui.NewYTAD()
