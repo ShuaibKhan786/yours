@@ -47,7 +47,7 @@ func TestYT(t *testing.T) {
 		}
 
 		switch md := mdInterface.(type) {
-		case *yt.PlaylistMD:
+		case *yt.PlaylistMetadata:
 			assertEqual(t, "track I enjoy", md.Title)
 			assertEqual(t, "Shuaib Khan", md.Author)
 			assertEqual(t, expectedTitle, md.Videos[5].Title)

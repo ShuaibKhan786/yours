@@ -8,7 +8,7 @@ import (
 
 type Metadata interface{}
 
-type PlaylistMD struct {
+type PlaylistMetadata struct {
 	ID          string
 	Title       string
 	Description string
@@ -42,14 +42,14 @@ func getVideoMetadata(ctx context.Context, videoID string) (*youtube.Video, erro
 	return video, nil
 }
 
-func getPlaylistMetadata(ctx context.Context, playlistID string) (*PlaylistMD, error) {
+func getPlaylistMetadata(ctx context.Context, playlistID string) (*PlaylistMetadata, error) {
 	client := &youtube.Client{}
 	playlist, err := client.GetPlaylistContext(ctx, playlistID)
 	if err != nil {
 		return nil, err
 	}
 
-	md := &PlaylistMD{
+	md := &PlaylistMetadata{
 		ID:          playlist.ID,
 		Title:       playlist.Title,
 		Description: playlist.Description,
