@@ -1,6 +1,7 @@
 package yt
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/kkdai/youtube/v2"
@@ -25,8 +26,7 @@ func init() {
 		"tiny":   {index: -1},
 	}
 }
-
-func sanitizedMP3MP4FormatsOnly(formats youtube.FormatList) youtube.FormatList {
+func sanitizedMP4FormatsOnly(formats youtube.FormatList) youtube.FormatList {
 	sanitizedFormats := make(youtube.FormatList, 0, 9)
 	index := int8(0)
 
@@ -39,21 +39,22 @@ func sanitizedMP3MP4FormatsOnly(formats youtube.FormatList) youtube.FormatList {
 			actualCodec := codec[1]
 
 			if smt, ok := supportedMimetypes[format.Quality]; ok {
-				if smt.state && smt.index != -1 {
-					if strings.Contains(actualCodec, "avc1") { //h.264 codec
-						sanitizedFormats[smt.index] = format
-						smt.index = -1
+				if smt.state {
+					if smt.index != -1 {
+						if strings.Contains(actualCodec, "avc1") { //h.264 codec
+							sanitizedFormats[smt.index] = format
+							smt.index = -1
+						}
 					}
+				} else {
+					if !strings.Contains(actualCodec, "avc1") {
+						smt.index = index
+					}
+					sanitizedFormats = append(sanitizedFormats, format)
+					smt.state = true
+					index++
 				}
-			} else {
-				if !strings.Contains(actualCodec, "avc1") {
-					smt.index = index
-				}
-				sanitizedFormats = append(sanitizedFormats, format)
-				smt.state = true
-				index++
 			}
-
 		case "audio/mp4":
 			if format.ItagNo == 140 { //AAC 128k
 				sanitizedFormats = append(sanitizedFormats, format)
@@ -62,4 +63,9 @@ func sanitizedMP3MP4FormatsOnly(formats youtube.FormatList) youtube.FormatList {
 		}
 	}
 	return sanitizedFormats
+}
+func sanitizeFilename(fileName string) string {
+	invalidChars := regexp.MustCompile(`[<>:"/\\|?* ]`)
+	safeFileName := invalidChars.ReplaceAllString(fileName, "")
+	return strings.TrimSpace(safeFileName)
 }

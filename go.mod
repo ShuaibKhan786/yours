@@ -3,7 +3,7 @@ module github.com/ShuaibKhan786/yours
 go 1.22.0
 
 require (
-	fyne.io/fyne/v2 v2.5.1
+	fyne.io/fyne/v2 v2.5.2
 	github.com/kkdai/youtube/v2 v2.10.1
 )
 
@@ -22,8 +22,8 @@ require (
 	github.com/go-gl/gl v0.0.0-20211210172815-726fda9656d6 // indirect
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20240506104042-037f3cc74f2a // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
-	github.com/go-text/render v0.1.1-0.20240418202334-dd62631dae9b // indirect
-	github.com/go-text/typesetting v0.1.0 // indirect
+	github.com/go-text/render v0.2.0 // indirect
+	github.com/go-text/typesetting v0.2.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/pprof v0.0.0-20240227163752-401108e1b7e7 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
