@@ -64,7 +64,7 @@ func sanitizedMP4FormatsOnly(formats youtube.FormatList) youtube.FormatList {
 	}
 	return sanitizedFormats
 }
-func sanitizeFilename(fileName string) string {
+func SanitizeFilename(fileName string) string {
 	invalidChars := regexp.MustCompile(`[<>:"/\\|?* ]`)
 	safeFileName := invalidChars.ReplaceAllString(fileName, "")
 	return strings.TrimSpace(safeFileName)

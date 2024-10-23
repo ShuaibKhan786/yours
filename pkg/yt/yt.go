@@ -89,7 +89,7 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 
 	switch itagNo {
 	case 140: //audio only
-		outputAudioFilename := fmt.Sprintf("%s.%s", sanitizeFilename(video.Title), audioExt)
+		outputAudioFilename := fmt.Sprintf("%s.%s", SanitizeFilename(video.Title), audioExt)
 		outputFullFilepath := filepath.Join(dir, outputAudioFilename)
 
 		formats := video.Formats.Itag(itagNo)
@@ -114,7 +114,7 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 
 		return nil
 	case 18: //audio + video
-		outputVideoFilename := fmt.Sprintf("%s.%s", sanitizeFilename(video.Title), videoExt)
+		outputVideoFilename := fmt.Sprintf("%s.%s", SanitizeFilename(video.Title), videoExt)
 		outputFullFilepath := filepath.Join(dir, outputVideoFilename)
 
 		formats := video.Formats.Itag(itagNo)
@@ -142,7 +142,7 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 			return nil
 		}
 
-		outputVideoFilename := fmt.Sprintf("%s.%s", sanitizeFilename(video.Title), videoExt)
+		outputVideoFilename := fmt.Sprintf("%s.%s", SanitizeFilename(video.Title), videoExt)
 		outputFullFilepath := filepath.Join(dir, outputVideoFilename)
 
 		tempVideoFilename := fmt.Sprintf("%s.%s", video.ID, videoExt)
@@ -168,6 +168,11 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 			os.Remove(tempAudioFullFilepath)
 		}()
 
+		_, err = io.Copy(audioWriter, audioReader)
+		if err != nil {
+			return err
+		}
+
 		// download the video temporarily
 		videoFormat := video.Formats.Itag(itagNo)
 		videoReader, _, err := client.GetStreamContext(ctx, video, &videoFormat[0])
@@ -184,6 +189,11 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 			videoWriter.Close()
 			os.Remove(tempVideoFullFilepath)
 		}()
+
+		_, err = io.Copy(videoWriter, videoReader)
+		if err != nil {
+			return err
+		}
 
 		//merge the audio and video in one video file
 		ffmpegCmd := exec.Command("ffmpeg",

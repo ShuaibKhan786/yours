@@ -2,6 +2,8 @@ package yt_test
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +16,7 @@ func TestYT(t *testing.T) {
 	expectedTitle := "Diamond Eyes - Worship | DnB | NCS - Copyright Free Music"
 	expectedAuthor := "NoCopyrightSounds"
 	t.Run("video metadata test", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
 		mdInterface, err := yt.GetYTMetadata(ctx, "https://youtu.be/gH9L98XWmiQ?si=YU6fR_4s5ohIVHAh")
@@ -32,6 +34,10 @@ func TestYT(t *testing.T) {
 			}
 
 			assertFormats(t, md.Formats)
+			//itag reference here: https://gist.github.com/sidneys/7095afe4da4ae58694d128b1034e01e2
+			assertDownload(ctx, t, md, 140) //audio only
+			assertDownload(ctx, t, md, 18)  //360
+			assertDownload(ctx, t, md, 299) //hd1080 60hz
 		default:
 			t.Errorf("Expected the type to be *youtube.Video")
 		}
@@ -83,5 +89,22 @@ func assertFormats(t *testing.T, formats youtube.FormatList) {
 	if !isExpectedItagAvilable {
 		t.Errorf("Expected ACC codec of 128kb bitrate")
 	}
+}
 
+func assertDownload(ctx context.Context, t *testing.T, md *youtube.Video, itagNo int) {
+	err := yt.Download(ctx, md, "", itagNo)
+	if err != nil {
+		t.Errorf("Expected no error but got one: %s", err.Error())
+	}
+	var filenameDelete string
+	if itagNo == 140 {
+		filenameDelete = fmt.Sprintf("%s.m4a", yt.SanitizeFilename(md.Title))
+	} else {
+		filenameDelete = fmt.Sprintf("%s.mp4", yt.SanitizeFilename(md.Title))
+	}
+
+	err = os.Remove(filenameDelete)
+	if err != nil {
+		t.Errorf("Expected no error but got one: %s", err.Error())
+	}
 }
