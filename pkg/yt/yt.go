@@ -2,18 +2,21 @@ package yt
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	"github.com/kkdai/youtube/v2"
 )
 
 const (
-	videoExt = "mp4"
-	audioExt = "m4a"
+	videoExt   = "mp4"
+	audioExt   = "m4a"
+	bufferSize = 32 * 1024
 )
 
 type Metadata interface{}
@@ -71,7 +74,10 @@ func getPlaylistMetadata(ctx context.Context, playlistID string) (*PlaylistMetad
 	for _, entry := range playlist.Videos {
 		video, err := client.VideoFromPlaylistEntryContext(ctx, entry)
 		if err != nil {
-			return nil, err
+			if errors.Is(err, context.Canceled) {
+				return nil, err
+			}
+			continue
 		}
 
 		video.Formats = sanitizedMP4FormatsOnly(video.Formats)
@@ -104,20 +110,21 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 		if err != nil {
 			return err
 		}
-		defer writer.Close()
 
-		_, err = io.Copy(writer, reader)
+		err = CopyContext(ctx, writer, reader)
 		if err != nil {
-			// defer os.Remove(outputFullFilepath)
+			writer.Close()
+			os.Remove(outputFullFilepath)
 			return err
 		}
 
+		writer.Close()
 		return nil
 	case 18: //audio + video
-		outputVideoFilename := fmt.Sprintf("%s.%s", SanitizeFilename(video.Title), videoExt)
-		outputFullFilepath := filepath.Join(dir, outputVideoFilename)
-
 		formats := video.Formats.Itag(itagNo)
+
+		outputVideoFilename := fmt.Sprintf("%s(%s).%s", SanitizeFilename(video.Title), formats[0].QualityLabel, videoExt)
+		outputFullFilepath := filepath.Join(dir, outputVideoFilename)
 
 		reader, _, err := client.GetStreamContext(ctx, video, &formats[0])
 		if err != nil {
@@ -129,30 +136,34 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 		if err != nil {
 			return err
 		}
-		defer writer.Close()
 
-		_, err = io.Copy(writer, reader)
+		err = CopyContext(ctx, writer, reader)
 		if err != nil {
+			writer.Close()
+			os.Remove(outputFullFilepath)
 			return err
 		}
 
+		writer.Close()
 		return nil
 	default: //audio and video must merge
-		if !isFFmpegInstalled() {
+		if !IsFFmpegInstalled() {
 			return nil
 		}
 
-		outputVideoFilename := fmt.Sprintf("%s.%s", SanitizeFilename(video.Title), videoExt)
+		audioFormat := video.Formats.Itag(140)
+		videoFormat := video.Formats.Itag(itagNo)
+
+		outputVideoFilename := fmt.Sprintf("%s(%s).%s", SanitizeFilename(video.Title), videoFormat[0].QualityLabel, videoExt)
 		outputFullFilepath := filepath.Join(dir, outputVideoFilename)
 
-		tempVideoFilename := fmt.Sprintf("%s.%s", video.ID, videoExt)
+		tempVideoFilename := fmt.Sprintf("%s(%s).%s", video.ID, videoFormat[0].QualityLabel, videoExt)
 		tempVideoFullFilepath := filepath.Join(dir, tempVideoFilename)
 
 		tempAudioFilename := fmt.Sprintf("%s.%s", video.ID, audioExt)
 		tempAudioFullFilepath := filepath.Join(dir, tempAudioFilename)
 
 		// download the audio temporarily
-		audioFormat := video.Formats.Itag(140)
 		audioReader, _, err := client.GetStreamContext(ctx, video, &audioFormat[0])
 		if err != nil {
 			return err
@@ -168,13 +179,12 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 			os.Remove(tempAudioFullFilepath)
 		}()
 
-		_, err = io.Copy(audioWriter, audioReader)
+		err = CopyContext(ctx, audioWriter, audioReader)
 		if err != nil {
 			return err
 		}
 
 		// download the video temporarily
-		videoFormat := video.Formats.Itag(itagNo)
 		videoReader, _, err := client.GetStreamContext(ctx, video, &videoFormat[0])
 		if err != nil {
 			return err
@@ -190,13 +200,15 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 			os.Remove(tempVideoFullFilepath)
 		}()
 
-		_, err = io.Copy(videoWriter, videoReader)
+		err = CopyContext(ctx, videoWriter, videoReader)
 		if err != nil {
 			return err
 		}
 
 		//merge the audio and video in one video file
-		ffmpegCmd := exec.Command("ffmpeg",
+		ffmpegCmd := exec.CommandContext(
+			ctx,
+			"ffmpeg",
 			"-i", tempVideoFullFilepath,
 			"-i", tempAudioFullFilepath,
 			"-c:v", "copy",
@@ -205,7 +217,10 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 			"-loglevel", "warning",
 		)
 
+		ffmpegCmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+
 		if err := ffmpegCmd.Start(); err != nil {
+			os.Remove(outputFullFilepath)
 			return err
 		}
 		if err := ffmpegCmd.Wait(); err != nil {
@@ -215,7 +230,30 @@ func Download(ctx context.Context, video *youtube.Video, dir string, itagNo int)
 	return nil
 }
 
-func isFFmpegInstalled() bool {
+func CopyContext(ctx context.Context, dst io.Writer, src io.Reader) error {
+	buffer := make([]byte, bufferSize)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			n, err := src.Read(buffer)
+			if err != nil {
+				if err == io.EOF {
+					return nil
+				}
+				return err
+			}
+
+			_, err = dst.Write(buffer[:n])
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func IsFFmpegInstalled() bool {
 	_, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return false

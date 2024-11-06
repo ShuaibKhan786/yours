@@ -100,7 +100,7 @@ func assertDownload(ctx context.Context, t *testing.T, md *youtube.Video, itagNo
 	if itagNo == 140 {
 		filenameDelete = fmt.Sprintf("%s.m4a", yt.SanitizeFilename(md.Title))
 	} else {
-		filenameDelete = fmt.Sprintf("%s.mp4", yt.SanitizeFilename(md.Title))
+		filenameDelete = fmt.Sprintf("%s(%s).mp4", yt.SanitizeFilename(md.Title), md.Formats.Itag(itagNo)[0].QualityLabel)
 	}
 
 	err = os.Remove(filenameDelete)

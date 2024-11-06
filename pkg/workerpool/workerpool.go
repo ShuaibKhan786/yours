@@ -1,32 +1,41 @@
+//ADVICE: always check the root context error before sending something
+//        to a channel as root context might called done when an application
+//        needs resource cleanup or in short when app closed
+//        which interns might closed the channel
+//        and if you send something on the closed channel it gets panic
+
 package workerpool
 
 import (
 	"context"
+	"time"
 )
 
 type Task interface {
 	Execute() error
 }
 
-type WorkerPool struct {
-	task      chan Task
-	err       chan error
-	queue     *queue
-	ctx       context.Context
-	cancelCtx func()
-	wpCount   int
+type dummyTask struct{}
+
+func (t *dummyTask) Execute() error {
+	return nil
 }
 
-func NewWorkerPool(wpCount int) *WorkerPool {
-	ctx, cancel := context.WithCancel(context.Background())
+type WorkerPool struct {
+	task    chan Task
+	err     chan error
+	queue   *queue
+	ctx     context.Context //root context
+	wpCount int
+}
 
+func NewWorkerPool(ctx context.Context, wpCount int) *WorkerPool {
 	wp := &WorkerPool{
-		task:      make(chan Task),
-		err:       make(chan error),
-		queue:     newQueue(),
-		ctx:       ctx,
-		cancelCtx: cancel,
-		wpCount:   wpCount,
+		task:    make(chan Task),
+		err:     make(chan error),
+		queue:   newQueue(),
+		ctx:     ctx,
+		wpCount: wpCount,
 	}
 
 	wp.initWP()
@@ -49,6 +58,8 @@ func (wp *WorkerPool) initWP() {
 
 	//workerpool manager go routine
 	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
 		for {
 			select {
 			case t := <-wp.task:
@@ -70,6 +81,15 @@ func (wp *WorkerPool) initWP() {
 				} else {
 					avilableWorker <- workerID
 				}
+			case <-ticker.C:
+				if wp.queue.len() == 0 && wp.ctx.Err() == nil {
+					for i := 0; i < wp.wpCount; i++ {
+						select {
+						case wp.task <- &dummyTask{}:
+						default:
+						}
+					}
+				}
 			case <-wp.ctx.Done():
 				for _, wpChannel := range wpChannels {
 					close(wpChannel)
@@ -84,7 +104,16 @@ func (wp *WorkerPool) initWP() {
 
 func (wp *WorkerPool) worker(id int, notifyDone chan int, assignedChannel chan struct{}) {
 	for {
+		//priortizing ctx first
 		select {
+		case <-wp.ctx.Done():
+			return
+		default:
+		}
+
+		select {
+		case <-wp.ctx.Done():
+			return
 		case <-assignedChannel:
 			t := wp.queue.dequeue()
 			if t != nil {
@@ -93,9 +122,11 @@ func (wp *WorkerPool) worker(id int, notifyDone chan int, assignedChannel chan s
 					wp.err <- err
 				}
 			}
+			//checking wether the root context is being cancelled
+			if wp.ctx.Err() != nil {
+				return
+			}
 			notifyDone <- id
-		case <-wp.ctx.Done():
-			return
 		}
 	}
 }
@@ -109,7 +140,6 @@ func (wp *WorkerPool) ErrorChannel() chan error {
 }
 
 func (wp *WorkerPool) Close() {
-	wp.cancelCtx()
 	close(wp.task)
 	close(wp.err)
 }

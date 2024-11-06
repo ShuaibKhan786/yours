@@ -14,8 +14,8 @@ func TestParse(t *testing.T) {
 			t.Errorf("Expected an error when parsed an invalid yt link")
 		}
 
-		if !errors.Is(err, errInvalidYTLink) {
-			t.Errorf("Expected error: %s but got: %s", errInvalidYTLink.Error(), err.Error())
+		if !errors.Is(err, ErrInvalidYTLink) {
+			t.Errorf("Expected error: %s but got: %s", ErrInvalidYTLink.Error(), err.Error())
 		}
 	})
 

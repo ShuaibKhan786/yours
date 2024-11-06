@@ -26,6 +26,7 @@ func init() {
 		"tiny":   {index: -1},
 	}
 }
+
 func sanitizedMP4FormatsOnly(formats youtube.FormatList) youtube.FormatList {
 	sanitizedFormats := make(youtube.FormatList, 0, 9)
 	index := int8(0)
@@ -62,8 +63,15 @@ func sanitizedMP4FormatsOnly(formats youtube.FormatList) youtube.FormatList {
 			}
 		}
 	}
+
+	for _, value := range supportedMimetypes {
+		value.index = -1
+		value.state = false
+	}
+
 	return sanitizedFormats
 }
+
 func SanitizeFilename(fileName string) string {
 	invalidChars := regexp.MustCompile(`[<>:"/\\|?* ]`)
 	safeFileName := invalidChars.ReplaceAllString(fileName, "")
