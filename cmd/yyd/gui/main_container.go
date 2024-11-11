@@ -331,7 +331,7 @@ func (smp *sharedMainPage) navbar() *fyne.Container {
 	}
 
 	return container.NewBorder(
-		nil,
+		SetYpadding(DefaultPaddingSize),
 		SetYpadding(DefaultPaddingSize),
 		nil, nil,
 		container.New(

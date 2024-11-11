@@ -60,6 +60,8 @@ func (y *YYD) getStartedPage(sv *navigation.StackNavigation) *fyne.Container {
 		} else {
 			ffmpegLabel.SetText("FFmpeg Not Installed")
 			ffmpegConfirmationImage.Resource = resourceWrongSvg
+			ffmpegCheckButton.SetIcon(theme.ConfirmIcon())
+			ffmpegCheckButton.SetText("Check")
 			ffmpegCheckButton.Hidden = false
 		}
 
